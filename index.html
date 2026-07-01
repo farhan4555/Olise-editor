@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MoodFilm — auto moody-film editor</title>
+<style>
+  :root{
+    --bg:#0d0e10; --panel:#16181c; --panel2:#1d2025; --line:#2a2e35;
+    --txt:#e7e3da; --dim:#8c8a83; --accent:#5e8c84; --accent2:#c9a27a;
+    --radius:14px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);min-height:100vh}
+  header{padding:22px 26px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px}
+  header .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#3f5d57,#c9a27a);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#0d0e10}
+  header h1{font-size:17px;margin:0;font-weight:600;letter-spacing:.2px}
+  header p{margin:2px 0 0;font-size:12.5px;color:var(--dim)}
+  .wrap{display:grid;grid-template-columns:1fr 340px;gap:0;min-height:calc(100vh - 79px)}
+  @media(max-width:900px){.wrap{grid-template-columns:1fr}}
+  .stage{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;gap:18px;position:relative}
+  .drop{width:100%;max-width:560px;aspect-ratio:4/5;border:1.5px dashed var(--line);border-radius:var(--radius);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;cursor:pointer;
+    background:var(--panel);transition:.2s;text-align:center;padding:30px}
+  .drop:hover,.drop.over{border-color:var(--accent);background:var(--panel2)}
+  .drop svg{opacity:.5}
+  .drop b{font-size:15px;font-weight:600}
+  .drop span{font-size:12.5px;color:var(--dim);max-width:300px}
+  canvas{max-width:100%;max-height:74vh;border-radius:var(--radius);box-shadow:0 16px 50px rgba(0,0,0,.5);display:none}
+  .compare{font-size:12px;color:var(--dim);display:none;align-items:center;gap:8px;user-select:none}
+  .compare b{color:var(--txt)}
+  .hint{font-size:12px;color:var(--dim)}
+  .panel{background:var(--panel);border-left:1px solid var(--line);padding:22px;overflow-y:auto;max-height:calc(100vh - 79px)}
+  .panel h3{font-size:11px;text-transform:uppercase;letter-spacing:1.4px;color:var(--dim);margin:24px 0 12px;font-weight:600}
+  .panel h3:first-child{margin-top:0}
+  .presets{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .preset{padding:11px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);cursor:pointer;
+    font-size:12.5px;font-weight:500;transition:.15s;text-align:left}
+  .preset:hover{border-color:var(--accent)}
+  .preset.active{border-color:var(--accent);background:#22302d;color:#cfe7e1}
+  .preset small{display:block;color:var(--dim);font-size:10.5px;font-weight:400;margin-top:2px}
+  .ctrl{margin-bottom:15px}
+  .ctrl label{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:7px;color:var(--txt)}
+  .ctrl label span{color:var(--dim);font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;-webkit-appearance:none;height:4px;border-radius:3px;background:var(--line);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+    background:var(--accent);cursor:pointer;border:2px solid var(--bg);box-shadow:0 0 0 1px var(--accent)}
+  .crops{display:flex;gap:7px}
+  .crop{flex:1;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);
+    cursor:pointer;font-size:12px;text-align:center;transition:.15s}
+  .crop.active{border-color:var(--accent2);background:#2a241c;color:#e7cda6}
+  .actions{display:flex;flex-direction:column;gap:9px;margin-top:26px}
+  button.go{padding:13px;border:none;border-radius:11px;font-size:13.5px;font-weight:600;cursor:pointer;transition:.15s}
+  .download{background:linear-gradient(135deg,#5e8c84,#c9a27a);color:#0d0e10}
+  .download:hover{filter:brightness(1.08)}
+  .download:disabled{opacity:.4;cursor:not-allowed;filter:none}
+  .ghost{background:transparent;color:var(--dim);border:1px solid var(--line)!important}
+  .ghost:hover{color:var(--txt);border-color:var(--accent)!important}
+  .grain-note{font-size:11px;color:var(--dim);line-height:1.5;margin-top:4px}
+  .busy{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:rgba(13,14,16,.74);border-radius:var(--radius);z-index:5}
+  .busy.show{display:flex}
+  .spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .busy p{font-size:13px;color:var(--txt);margin:0}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#3a1f22;border:1px solid #7d3b40;color:#f0d5d5;padding:11px 16px;border-radius:10px;font-size:13px;max-width:80vw;z-index:50;display:none;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+  .toast.show{display:block}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">MF</div>
+  <div>
+    <h1>MoodFilm</h1>
+    <p>Drop a photo → auto moody-film grade → post-ready. Runs 100% in your browser.</p>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="drop" id="drop">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      <b>Drop a photo or click to choose</b>
+      <span>JPG / PNG / HEIC. Best results with soft or overcast light. Nothing leaves your device.</span>
+    </div>
+    <canvas id="cv"></canvas>
+    <div class="compare" id="compare">Hold <b>&nbsp;press &amp; hold the image&nbsp;</b> to see the original</div>
+    <div class="hint" id="hint"></div>
+    <div class="busy" id="busy"><div class="spinner"></div><p id="busyMsg">Working…</p></div>
+  </div>
+
+  <div class="panel">
+    <h3>Look</h3>
+    <div class="presets" id="presets"></div>
+
+    <h3>Fine-tune</h3>
+    <div id="sliders"></div>
+
+    <h3>Crop for post</h3>
+    <div class="crops" id="crops">
+      <div class="crop" data-crop="orig">Original</div>
+      <div class="crop active" data-crop="4:5">4:5 feed</div>
+      <div class="crop" data-crop="1:1">1:1</div>
+      <div class="crop" data-crop="9:16">9:16 story</div>
+    </div>
+
+    <div class="actions">
+      <button class="go download" id="dl" disabled>Download post-ready ↓</button>
+      <button class="go ghost" id="reset">Reset adjustments</button>
+      <button class="go ghost" id="new">Load different photo</button>
+    </div>
+    <p class="grain-note">Grain is rendered into the export at full strength — that filmic texture is what sells the look. Download is a high-quality JPG sized for Instagram.</p>
+  </div>
+</div>
+
+<input type="file" id="file" accept="image/*,.heic,.heif" hidden>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const cv = $('#cv'), ctx = cv.getContext('2d', {willReadFrequently:true});
+let img = null;            // source ImageData (already cropped, full working res)
+let srcCanvas = null;      // cropped source as canvas for redraws
+let curCrop = '4:5';
+
+/* ---------- the looks ---------- */
+// every preset carries all keys (incl. halation, rgbSplit, scan) so sliders stay in sync
+const PRESETS = {
+  korschan: { name:'Korschan Editorial', sub:'punchy film, deep blacks, warm skin',
+    exposure:0, contrast:15, fade:0, sat:8, warmth:13, teal:4, green:0, vignette:9, grain:27, temp:3, halation:14, rgbSplit:0, scan:0 },
+  ksig:     { name:'Korschan Signature', sub:'measured from 453 shots: low-key, deep',
+    exposure:-0.13, contrast:14, fade:0.01, sat:-4, warmth:2, teal:6, green:0, vignette:20, grain:30, temp:-1, halation:20, rgbSplit:0, scan:0 },
+  olise:    { name:'Olise Broadcast', sub:'measured: cyan wash, VHS, faded',
+    exposure:-0.05, contrast:-6, fade:0.06, sat:-30, warmth:-6, teal:22, green:14, vignette:26, grain:55, temp:-24, halation:22, rgbSplit:3, scan:28, motion:9, halftone:24 },
+  tape:     { name:'Broadcast Tape', sub:'full VHS: motion smear + dither',
+    exposure:-0.04, contrast:-6, fade:0.08, sat:-28, warmth:-6, teal:22, green:14, vignette:24, grain:55, temp:-22, halation:26, rgbSplit:5, scan:40, motion:32, halftone:42 },
+  dream:    { name:'Korschan Dream', sub:'soft, chromatic, glowing',
+    exposure:0.03, contrast:-16, fade:0.14, sat:-20, warmth:2, teal:18, green:6, vignette:14, grain:24, temp:-4, halation:42, rgbSplit:6, scan:0 },
+  night:    { name:'Night Match', sub:'dark, crushed, cold',
+    exposure:-0.12, contrast:22, fade:0, sat:-30, warmth:-2, teal:24, green:6, vignette:42, grain:38, temp:-10, halation:18, rgbSplit:0, scan:10 },
+  street:   { name:'Street Film', sub:'natural daylight, fine grain',
+    exposure:0.02, contrast:4, fade:0.04, sat:-6, warmth:6, teal:6, green:2, vignette:10, grain:22, temp:2, halation:10, rgbSplit:0, scan:0 },
+  bleach:   { name:'Bleach Bypass', sub:'silvery, harsh, desaturated',
+    exposure:0.02, contrast:26, fade:0.03, sat:-55, warmth:0, teal:6, green:2, vignette:18, grain:30, temp:-2, halation:8, rgbSplit:0, scan:0 },
+  amber:    { name:'Amber Haze', sub:'warm vintage, hazy glow',
+    exposure:0.04, contrast:-10, fade:0.13, sat:-14, warmth:24, teal:0, green:0, vignette:16, grain:30, temp:10, halation:38, rgbSplit:0, scan:0 },
+  cinema:   { name:'Cinematic', sub:'teal & orange, punchy',
+    exposure:0, contrast:6, fade:0.05, sat:-8, warmth:18, teal:26, green:2, vignette:22, grain:22, temp:0, halation:16, rgbSplit:0, scan:0 },
+  mono:     { name:'Mono Film', sub:'desaturated b&w grain',
+    exposure:0.02, contrast:8, fade:0.09, sat:-100, warmth:0, teal:0, green:0, vignette:28, grain:40, temp:0, halation:12, rgbSplit:0, scan:0 },
+};
+const SLIDERS = [
+  ['exposure','Exposure',-0.5,0.5,0.01],
+  ['contrast','Contrast',-40,40,1],
+  ['fade','Faded blacks',0,0.30,0.005],
+  ['sat','Saturation',-100,40,1],
+  ['warmth','Midtone warmth',-30,40,1],
+  ['teal','Shadow teal',0,50,1],
+  ['green','Green shift',0,30,1],
+  ['temp','Temp',-30,30,1],
+  ['vignette','Vignette',0,60,1],
+  ['grain','Film grain',0,60,1],
+  ['halation','Halation glow',0,60,1],
+  ['rgbSplit','Chromatic split',0,12,0.5],
+  ['scan','Scanlines',0,60,1],
+  ['motion','VHS motion-echo',0,60,1],
+  ['halftone','Halftone / dither',0,60,1],
+];
+// ensure every preset carries all slider keys (new effects default to 0)
+Object.values(PRESETS).forEach(p=>SLIDERS.forEach(([k])=>{ if(p[k]===undefined) p[k]=0; }));
+let P = {...PRESETS.korschan};
+let activePreset = 'korschan';
+
+/* ---------- build UI ---------- */
+const presetEl = $('#presets');
+Object.entries(PRESETS).forEach(([k,v])=>{
+  const d=document.createElement('div');
+  d.className='preset'+(k==='korschan'?' active':'');
+  d.dataset.k=k;
+  d.innerHTML=`${v.name}<small>${v.sub}</small>`;
+  d.onclick=()=>{ activePreset=k; P={...PRESETS[k]}; syncSliders();
+    document.querySelectorAll('.preset').forEach(p=>p.classList.toggle('active',p.dataset.k===k)); persist(); scheduleRender(); };
+  presetEl.appendChild(d);
+});
+const sliderWrap = $('#sliders');
+SLIDERS.forEach(([key,label,min,max,step])=>{
+  const c=document.createElement('div'); c.className='ctrl';
+  c.innerHTML=`<label>${label}<span id="v_${key}"></span></label>
+    <input type="range" id="s_${key}" min="${min}" max="${max}" step="${step}">`;
+  sliderWrap.appendChild(c);
+  c.querySelector('input').addEventListener('input',e=>{
+    P[key]=parseFloat(e.target.value); $('#v_'+key).textContent=fmt(key,P[key]);
+    document.querySelectorAll('.preset').forEach(p=>p.classList.remove('active'));
+    persist(); scheduleRender();
+  });
+});
+function fmt(k,v){ if(k==='fade')return v.toFixed(3); if(k==='exposure')return v.toFixed(2); if(k==='rgbSplit')return v.toFixed(1); return Math.round(v); }
+function syncSliders(){ SLIDERS.forEach(([k])=>{ $('#s_'+k).value=P[k]; $('#v_'+k).textContent=fmt(k,P[k]); }); }
+syncSliders();
+
+/* ---------- crop buttons ---------- */
+document.querySelectorAll('.crop').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.crop').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); curCrop=b.dataset.crop; if(rawImg) prepareSource();
+});
+
+/* ---------- file loading ---------- */
+let rawImg=null;
+const drop=$('#drop'), fileIn=$('#file');
+drop.onclick=()=>fileIn.click();
+$('#new').onclick=()=>fileIn.click();
+fileIn.onchange=e=>{ if(e.target.files[0]) loadFile(e.target.files[0]); };
+['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+
+async function loadFile(f){
+  if(!f.type.startsWith('image/') && !/\.hei[cf]$/i.test(f.name)){
+    return setBusy(false,'That doesn’t look like an image file.',true);
+  }
+  setBusy(true,'Loading photo…');
+  try{
+    let blob=f;
+    if(/hei[cf]/i.test(f.type) || /\.hei[cf]$/i.test(f.name)){
+      setBusy(true,'Converting HEIC… (first one takes a few seconds)'); blob=await heicToJpeg(f);
+    }
+    rawImg=await decodeImage(blob);
+    prepareSource();
+    drop.style.display='none'; cv.style.display='block';
+    $('#compare').style.display='flex'; $('#dl').disabled=false;
+    setBusy(false);
+  }catch(err){ console.error(err); setBusy(false, err.message||'Could not load this image.', true); }
+}
+/* decode a blob to an EXIF-oriented bitmap; fall back to <img> */
+async function decodeImage(blob){
+  if('createImageBitmap' in window){
+    try{ return await createImageBitmap(blob,{imageOrientation:'from-image'}); }catch(_){}
+  }
+  return await new Promise((res,rej)=>{ const url=URL.createObjectURL(blob), i=new Image();
+    i.onload=()=>{ URL.revokeObjectURL(url); res(i); };
+    i.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('Unsupported or corrupt image.')); };
+    i.src=url; });
+}
+/* lazily pull in heic-to (current libheif; decodes locally, only the library is fetched) */
+let _heic=null;
+async function heicToJpeg(file){
+  if(!_heic){
+    try{ _heic=await import('https://esm.sh/heic-to@1.1.14'); }
+    catch(_){ throw new Error('HEIC support needs a connection the first time — or convert to JPG.'); }
+  }
+  try{ return await _heic.heicTo({blob:file,type:'image/jpeg',quality:0.94}); }
+  catch(_){ throw new Error('This HEIC couldn’t be decoded. On Mac: open it in Preview → File → Export → JPEG, then drop the JPG here.'); }
+}
+/* loading / error UI */
+function setBusy(on,msg,isError){
+  const b=$('#busy'), t=$('#toast');
+  if(on){ $('#busyMsg').textContent=msg||'Working…'; b.classList.add('show'); t.classList.remove('show'); }
+  else { b.classList.remove('show');
+    if(isError&&msg){ t.textContent=msg; t.classList.add('show'); clearTimeout(setBusy._t); setBusy._t=setTimeout(()=>t.classList.remove('show'),6000); } }
+}
+
+/* two-tier source: fast PREVIEW for editing, high-res EXPORT for download */
+const PREVIEW_MAX=1400, EXPORT_MAX=2560;
+let cropRect=null;
+function computeCrop(){
+  const ratios={'orig':null,'4:5':4/5,'1:1':1,'9:16':9/16};
+  const ar=ratios[curCrop];
+  const W=rawImg.naturalWidth||rawImg.width, H=rawImg.naturalHeight||rawImg.height;
+  let sw=W, sh=H, sx=0, sy=0;
+  if(ar){ const cur=sw/sh;
+    if(cur>ar){ const nw=sh*ar; sx=(sw-nw)/2; sw=nw; }
+    else { const nh=sw/ar; sy=(sh-nh)/2; sh=nh; } }
+  return {sx,sy,sw,sh};
+}
+function buildSource(cap){
+  const {sx,sy,sw,sh}=cropRect; let ow=sw, oh=sh;
+  if(Math.max(ow,oh)>cap){ const s=cap/Math.max(ow,oh); ow=Math.round(ow*s); oh=Math.round(oh*s); }
+  const c=document.createElement('canvas'); c.width=ow; c.height=oh;
+  c.getContext('2d').drawImage(rawImg,sx,sy,sw,sh,0,0,ow,oh);
+  return {canvas:c,w:ow,h:oh};
+}
+function prepareSource(){
+  cropRect=computeCrop();
+  const p=buildSource(PREVIEW_MAX); srcCanvas=p.canvas;
+  img=srcCanvas.getContext('2d').getImageData(0,0,p.w,p.h);
+  cv.width=p.w; cv.height=p.h; render();
+  $('#hint').textContent=`preview ${p.w}×${p.h} · exports up to ${EXPORT_MAX}px · ${curCrop} · ${PRESETS[activePreset]?PRESETS[activePreset].name:'custom'}`;
+}
+
+/* ---------- the grade (pure: source pixels -> graded ImageData) ---------- */
+function gradeImage(s,w,h){
+  const out=new ImageData(w,h);
+  const d=out.data;
+  const fade=P.fade, sat=P.sat/100, warmth=P.warmth/255, teal=P.teal/255,
+        green=P.green/255, temp=P.temp/255, expo=Math.pow(2,P.exposure),
+        contrast=P.contrast/100;
+  const cx=w/2, cy=h/2, maxd=Math.hypot(cx,cy), vig=P.vignette/100;
+  for(let i=0;i<s.length;i+=4){
+    let r=s[i]/255, g=s[i+1]/255, b=s[i+2]/255;
+    // exposure
+    r*=expo; g*=expo; b*=expo;
+    // faded blacks (lift toe)
+    r=r*(1-fade)+fade; g=g*(1-fade)+fade; b=b*(1-fade)+fade;
+    // soft S contrast around pivot
+    const cf=1+contrast;
+    r=(r-0.5)*cf+0.5; g=(g-0.5)*cf+0.5; b=(b-0.5)*cf+0.5;
+    // luminance
+    let lum=0.299*r+0.587*g+0.114*b;
+    // desaturate toward luminance: lerp(channel, lum, satAmt)
+    const satAmt = -sat; // P.sat negative => satAmt positive => pulls toward gray
+    r=lum+(r-lum)*(1-satAmt); g=lum+(g-lum)*(1-satAmt); b=lum+(b-lum)*(1-satAmt);
+    // weights
+    const shadow=Math.max(0,1-lum*1.6);
+    const mid=1-Math.abs(lum-0.5)*2;
+    // shadow teal (cool: -r +g +b)
+    r-=teal*shadow; g+=teal*0.5*shadow; b+=teal*shadow;
+    // global green shift in mids
+    g+=green*mid;
+    // midtone warmth (+r -b)
+    r+=warmth*mid; b-=warmth*mid;
+    // temp
+    r+=temp; b-=temp;
+    // vignette
+    const px=(i/4)%w, py=Math.floor((i/4)/w);
+    const dist=Math.hypot(px-cx,py-cy)/maxd;
+    const vf=1-vig*Math.pow(dist,2.2);
+    r*=vf; g*=vf; b*=vf;
+    d[i]=clamp(r); d[i+1]=clamp(g); d[i+2]=clamp(b); d[i+3]=255;
+  }
+  // ---- halation: warm bloom blurred out from the highlights ----
+  const hal=(P.halation||0)/60;
+  if(hal>0){
+    const n=w*h, hi=new Float32Array(n);
+    for(let p=0,i=0;p<n;p++,i+=4){
+      const l=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])/255;
+      hi[p]=l>0.62?(l-0.62)/0.38:0;
+    }
+    const rad=Math.max(2,Math.round(Math.min(w,h)/90));
+    boxBlur(hi,w,h,rad); boxBlur(hi,w,h,rad);
+    for(let p=0,i=0;p<n;p++,i+=4){ const gl=hi[p]*hal*255;
+      d[i]=clamp((d[i]+gl*1.0)/255); d[i+1]=clamp((d[i+1]+gl*0.62)/255); d[i+2]=clamp((d[i+2]+gl*0.34)/255); }
+  }
+  // ---- VHS motion-echo: directional horizontal ghost trails ----
+  const mo=(P.motion||0)/60;
+  if(mo>0){
+    const base=d.slice();
+    const step=Math.max(1,Math.round(mo*w*0.03));
+    const taps=[[0,1],[step,0.6],[step*2,0.38],[step*3,0.24],[step*4,0.14]];
+    let wsum=0; for(const t of taps) wsum+=t[1];
+    for(let y=0;y<h;y++){ const row=y*w;
+      for(let x=0;x<w;x++){ let ar=0,ag=0,ab=0;
+        for(let k=0;k<taps.length;k++){ const j=(row+Math.max(0,x-taps[k][0]))*4, wt=taps[k][1];
+          ar+=base[j]*wt; ag+=base[j+1]*wt; ab+=base[j+2]*wt; }
+        const i=(row+x)*4; d[i]=ar/wsum; d[i+1]=ag/wsum; d[i+2]=ab/wsum; } }
+  }
+  // ---- chromatic aberration: split red/blue horizontally ----
+  const cs=Math.round(P.rgbSplit||0);
+  if(cs>0){
+    const base=d.slice();
+    for(let y=0;y<h;y++){ for(let x=0;x<w;x++){ const i=(y*w+x)*4;
+      const xr=Math.min(w-1,x+cs), xb=Math.max(0,x-cs);
+      d[i]=base[(y*w+xr)*4]; d[i+2]=base[(y*w+xb)*4+2]; } }
+  }
+  // ---- scanlines: subtle horizontal broadcast texture ----
+  const sc=(P.scan||0)/60;
+  if(sc>0){ for(let y=0;y<h;y++){ const f=1-sc*0.4*(y&1); const row=y*w*4;
+    for(let x=0;x<w;x++){ const i=row+x*4; d[i]*=f; d[i+1]*=f; d[i+2]*=f; } } }
+  // ---- halftone / dither: structured broadcast-interference texture ----
+  const ht=(P.halftone||0)/60;
+  if(ht>0){
+    const bayer=[1,9,3,11,13,5,15,7,4,12,2,10,16,8,14,6], amp=ht*52;
+    for(let y=0;y<h;y++){ const row=y*w*4, yb=(y>>1)&3;
+      for(let x=0;x<w;x++){ const off=(bayer[yb*4+((x>>1)&3)]/17-0.5)*amp; const i=row+x*4;
+        d[i]=clamp((d[i]+off)/255); d[i+1]=clamp((d[i+1]+off)/255); d[i+2]=clamp((d[i+2]+off)/255); } }
+  }
+  // ---- film grain (over everything) ----
+  const gA=P.grain/60*22;
+  if(gA>0){ for(let i=0;i<d.length;i+=4){ const n=(Math.random()-0.5)*gA;
+    d[i]=clamp((d[i]+n)/255); d[i+1]=clamp((d[i+1]+n)/255); d[i+2]=clamp((d[i+2]+n)/255); } }
+  return out;
+}
+function render(){ if(!img) return; ctx.putImageData(gradeImage(img.data,img.width,img.height),0,0); }
+/* coalesce rapid slider input into one render per frame */
+let _raf=0;
+function scheduleRender(){ if(_raf) return; _raf=requestAnimationFrame(()=>{ _raf=0; render(); }); }
+function clamp(v){ v=v*255; return v<0?0:v>255?255:v; }
+// separable box blur on a single-channel Float32 buffer (in place)
+function boxBlur(buf,w,h,r){
+  const tmp=new Float32Array(buf.length), win=2*r+1;
+  for(let y=0;y<h;y++){ let acc=0; const row=y*w;
+    for(let x=-r;x<=r;x++) acc+=buf[row+Math.min(w-1,Math.max(0,x))];
+    for(let x=0;x<w;x++){ tmp[row+x]=acc/win;
+      acc+=buf[row+Math.min(w-1,x+r+1)]-buf[row+Math.max(0,x-r)]; } }
+  for(let x=0;x<w;x++){ let acc=0;
+    for(let y=-r;y<=r;y++) acc+=tmp[Math.min(h-1,Math.max(0,y))*w+x];
+    for(let y=0;y<h;y++){ buf[y*w+x]=acc/win;
+      acc+=tmp[Math.min(h-1,y+r+1)*w+x]-tmp[Math.max(0,y-r)*w+x]; } }
+}
+
+/* press-and-hold to compare original */
+let holding=false;
+cv.addEventListener('mousedown',()=>{ if(srcCanvas){ ctx.putImageData(img,0,0); holding=true; }});
+cv.addEventListener('touchstart',e=>{ if(srcCanvas){ ctx.putImageData(img,0,0); holding=true; }},{passive:true});
+window.addEventListener('mouseup',()=>{ if(holding){ render(); holding=false; }});
+window.addEventListener('touchend',()=>{ if(holding){ render(); holding=false; }});
+
+/* download — re-grade the full-res source so the export is high quality */
+$('#dl').onclick=()=>{
+  if(!rawImg) return;
+  setBusy(true,'Rendering full resolution…');
+  setTimeout(()=>{ try{
+    const src=buildSource(EXPORT_MAX);
+    const sdata=src.canvas.getContext('2d').getImageData(0,0,src.w,src.h).data;
+    const oc=document.createElement('canvas'); oc.width=src.w; oc.height=src.h;
+    oc.getContext('2d').putImageData(gradeImage(sdata,src.w,src.h),0,0);
+    oc.toBlob(bl=>{ const a=document.createElement('a');
+      a.href=URL.createObjectURL(bl);
+      a.download=`moodfilm-${activePreset||'edit'}-${curCrop.replace(':','x')}.jpg`;
+      a.click(); URL.revokeObjectURL(a.href); setBusy(false);
+    },'image/jpeg',0.94);
+  }catch(e){ setBusy(false,'Export failed: '+e.message,true); } },30);
+};
+$('#reset').onclick=()=>{ P={...PRESETS[activePreset]||PRESETS.korschan}; syncSliders();
+  document.querySelectorAll('.preset').forEach(p=>p.classList.toggle('active',p.dataset.k===activePreset)); persist(); render(); };
+
+/* remember the last look between sessions */
+function persist(){ try{ localStorage.setItem('moodfilm',JSON.stringify({preset:activePreset,P,crop:curCrop})); }catch(_){} }
+(function restore(){ try{ const j=JSON.parse(localStorage.getItem('moodfilm')||'null');
+  if(j&&j.P){ activePreset=j.preset||activePreset; P={...PRESETS[activePreset],...j.P}; if(j.crop)curCrop=j.crop;
+    syncSliders();
+    document.querySelectorAll('.preset').forEach(p=>p.classList.toggle('active',p.dataset.k===activePreset));
+    document.querySelectorAll('.crop').forEach(x=>x.classList.toggle('active',x.dataset.crop===curCrop));
+  } }catch(_){} })();
+</script>
+</body>
+</html>
